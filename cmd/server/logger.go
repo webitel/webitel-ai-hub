@@ -57,7 +57,7 @@ func consoleHandler(json bool, opts *slog.HandlerOptions) slog.Handler {
 }
 
 func fileHandler(path string, opts *slog.HandlerOptions, lc fx.Lifecycle) (slog.Handler, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600) // #nosec G304 -- path from trusted app config
 	if err != nil {
 		return nil, err
 	}
