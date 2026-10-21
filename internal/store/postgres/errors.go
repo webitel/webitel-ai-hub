@@ -51,6 +51,10 @@ func fromPgError(err error, pgErr *pgconn.PgError) error {
 		return checkViolation(err, pgErr)
 	case pgerrcode.NotNullViolation:
 		return notNullViolation(err, pgErr)
+	case pgerrcode.SerializationFailure, pgerrcode.DeadlockDetected:
+		return transactionAborted(err)
+	case pgerrcode.ProgramLimitExceeded:
+		return programLimitExceeded(err)
 	default:
 		return internalError(err)
 	}
@@ -111,6 +115,22 @@ func fromDataException(err error, dataErr *pgw.DataExceptionError) error {
 		errors.WithValue("schema", dataErr.Schema),
 		errors.WithValue("table", dataErr.Table),
 		errors.WithValue("column", dataErr.Column),
+	)
+}
+
+func transactionAborted(err error) error {
+	return errors.Aborted(
+		"transaction conflict; retry the operation",
+		errors.WithID("store.pg.aborted"),
+		errors.WithCause(err),
+	)
+}
+
+func programLimitExceeded(err error) error {
+	return errors.InvalidArgument(
+		"invalid input: program limit exceeded",
+		errors.WithID("store.pg.program_limit"),
+		errors.WithCause(err),
 	)
 }
 

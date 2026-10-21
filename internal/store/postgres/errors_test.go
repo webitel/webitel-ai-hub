@@ -103,8 +103,26 @@ func TestParseError(t *testing.T) {
 			wantID:   "store.pg.internal",
 		},
 		{
-			name:     "unknown pg error is internal",
+			name:     "serialization failure is aborted",
 			in:       &pgconn.PgError{Code: pgerrcode.SerializationFailure},
+			wantCode: codes.Aborted,
+			wantID:   "store.pg.aborted",
+		},
+		{
+			name:     "deadlock is aborted",
+			in:       &pgconn.PgError{Code: pgerrcode.DeadlockDetected},
+			wantCode: codes.Aborted,
+			wantID:   "store.pg.aborted",
+		},
+		{
+			name:     "program limit exceeded is invalid argument",
+			in:       &pgconn.PgError{Code: pgerrcode.ProgramLimitExceeded},
+			wantCode: codes.InvalidArgument,
+			wantID:   "store.pg.program_limit",
+		},
+		{
+			name:     "unknown pg error is internal",
+			in:       &pgconn.PgError{Code: pgerrcode.ConnectionFailure},
 			wantCode: codes.Internal,
 			wantID:   "store.pg.internal",
 		},
