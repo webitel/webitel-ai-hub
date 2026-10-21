@@ -1,6 +1,6 @@
 module github.com/webitel/webitel-ai-hub
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
