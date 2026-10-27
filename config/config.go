@@ -2,10 +2,17 @@
 package config
 
 import (
+	"time"
+
 	"github.com/spf13/pflag"
 
 	"github.com/webitel/webitel-go-kit/appconfig"
 	"github.com/webitel/webitel-go-kit/pkg/errors"
+)
+
+const (
+	defaultHealthStartTimeoutSec = 60
+	defaultHealthStopTimeoutSec  = 12
 )
 
 // Config is the subset of process settings this binary reads.
@@ -15,15 +22,29 @@ type Config struct {
 	Health   HealthConfig       `mapstructure:"health"`
 }
 
-// HealthConfig exposes the health probes.
+// HealthConfig exposes the health probes and sd_notify timings.
 type HealthConfig struct {
-	// Addr is the listen address of /livez, /readyz and /healthz. Empty disables them.
-	Addr string `mapstructure:"addr"`
+	// Address is the listen address of /livez, /readyz and /healthz. Empty disables them.
+	Address string `mapstructure:"address"`
+	// StartTimeout is seconds before sd_notify reports READY=1 anyway.
+	StartTimeout int `mapstructure:"start_timeout"`
+	// StopTimeout is the drain budget on shutdown, in seconds.
+	StopTimeout int `mapstructure:"stop_timeout"`
 }
 
-// LoadServerConfig loads logging, Postgres and the health address.
+// StartTimeoutDuration returns StartTimeout as a duration.
+func (h HealthConfig) StartTimeoutDuration() time.Duration {
+	return time.Duration(h.StartTimeout) * time.Second
+}
+
+// StopTimeoutDuration returns StopTimeout as a duration.
+func (h HealthConfig) StopTimeoutDuration() time.Duration {
+	return time.Duration(h.StopTimeout) * time.Second
+}
+
+// LoadServerConfig loads logging, Postgres and the health settings.
 func LoadServerConfig() (*Config, error) {
-	cfg, err := load(appconfig.Sections{Log: true, Postgres: true}, registerHealthFlag)
+	cfg, err := load(appconfig.Sections{Log: true, Postgres: true}, registerHealthFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -67,13 +88,25 @@ func load(sections appconfig.Sections, extra func()) (*Config, error) {
 	return cfg, nil
 }
 
-func registerHealthFlag() {
-	pflag.String("health.addr", "", "listen address of the health probes (empty disables them)")
+func registerHealthFlags() {
+	pflag.String("health.address", "", "listen address of the health probes (empty disables them)")
+	pflag.Int("health.start_timeout", defaultHealthStartTimeoutSec,
+		"seconds before sd_notify reports READY=1 anyway; must stay under TimeoutStartSec")
+	pflag.Int("health.stop_timeout", defaultHealthStopTimeoutSec,
+		"seconds budget for readiness drain on shutdown; must fit inside TimeoutStopSec")
 }
 
 func (c *Config) validateServer() error {
 	if c.Log.Level == "" {
 		c.Log.Level = "info"
+	}
+
+	if c.Health.StartTimeout <= 0 {
+		c.Health.StartTimeout = defaultHealthStartTimeoutSec
+	}
+
+	if c.Health.StopTimeout <= 0 {
+		c.Health.StopTimeout = defaultHealthStopTimeoutSec
 	}
 
 	return c.requireDSN()

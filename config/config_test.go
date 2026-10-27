@@ -26,6 +26,22 @@ func TestValidateServerDefaultsLogLevel(t *testing.T) {
 	}
 }
 
+func TestValidateServerDefaultsHealthTimeouts(t *testing.T) {
+	cfg := &Config{Postgres: appconfig.Postgres{DSN: "postgres://localhost/webitel"}}
+
+	if err := cfg.validateServer(); err != nil {
+		t.Fatalf("validateServer() error = %v", err)
+	}
+
+	if cfg.Health.StartTimeout != defaultHealthStartTimeoutSec {
+		t.Fatalf("StartTimeout = %d, want %d", cfg.Health.StartTimeout, defaultHealthStartTimeoutSec)
+	}
+
+	if cfg.Health.StopTimeout != defaultHealthStopTimeoutSec {
+		t.Fatalf("StopTimeout = %d, want %d", cfg.Health.StopTimeout, defaultHealthStopTimeoutSec)
+	}
+}
+
 func TestRequireDSNAcceptsValue(t *testing.T) {
 	cfg := &Config{Postgres: appconfig.Postgres{DSN: "postgres://localhost/webitel"}}
 

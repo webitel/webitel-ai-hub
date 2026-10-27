@@ -5,10 +5,13 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/webitel/webitel-go-kit/infra/health"
 	healthfx "github.com/webitel/webitel-go-kit/infra/health/fx"
+	otelhealth "github.com/webitel/webitel-go-kit/infra/otel/instrumentation/health"
+	pgwfx "github.com/webitel/webitel-go-kit/infra/pgw/fx"
 
 	"github.com/webitel/webitel-ai-hub/config"
-	"github.com/webitel/webitel-ai-hub/internal/store/postgres"
+	"github.com/webitel/webitel-ai-hub/internal/model"
 )
 
 // pgwStartTimeout bounds the initial primary connect. pgw retries on its own
@@ -23,8 +26,18 @@ func NewApp(cfg *config.Config) *fx.App {
 			func() *config.Config { return cfg },
 			ProvideLogger,
 		),
-		healthfx.Module(healthfx.Config{HTTPAddr: cfg.Health.Addr}),
-		postgres.Module,
+		healthfx.Module(healthfx.Config{
+			HTTPAddr:     cfg.Health.Address,
+			StartTimeout: cfg.Health.StartTimeoutDuration(),
+			StopTimeout:  cfg.Health.StopTimeoutDuration(),
+		}, health.WithTransport(otelhealth.NewTransport())),
+		pgwfx.Module(pgwfx.Config{
+			ApplicationName: model.ServiceName,
+			DSN:             cfg.Postgres.DSN,
+			MaxConns:        cfg.Postgres.MaxOpenConns,
+			MinConns:        cfg.Postgres.MaxIdleConns,
+			RegisterHealth:  true,
+		}),
 		healthfx.Shutdown(),
 	)
 }

@@ -16,9 +16,10 @@ import (
 //
 // Callers branch on errors.Code. The driver error stays attached as the cause.
 // Constraint names come from pgconn fields; the locale-dependent Detail text is
-// never parsed. pgw turns an unregistered constraint violation from Exec or Query
-// into DataExceptionError and drops the constraint name, so that type is mapped
-// from the schema, table and column it still carries. QueryRow leaves PgError intact.
+// never parsed. pgw wraps unregistered constraint violations as DataExceptionError
+// that still unwraps to *pgconn.PgError (with Code and ConstraintName), so the
+// PgError branch covers both shapes. A shared go-kit mapper is not available yet
+// (DT-34); keep this local until then.
 func ParseError(err error) error {
 	if err == nil {
 		return nil
