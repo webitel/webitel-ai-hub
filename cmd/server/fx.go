@@ -36,6 +36,7 @@ func NewApp(cfg *config.Config) *fx.App {
 			DSN:             cfg.Postgres.DSN,
 			MaxConns:        cfg.Postgres.MaxOpenConns,
 			MinConns:        cfg.Postgres.MaxIdleConns,
+			StandbyDSN:      cfg.Postgres.StandbyDSNs(),
 			RegisterHealth:  true,
 		}),
 		healthfx.Shutdown(),

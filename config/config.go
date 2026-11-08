@@ -2,6 +2,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -13,13 +14,51 @@ import (
 const (
 	defaultHealthStartTimeoutSec = 60
 	defaultHealthStopTimeoutSec  = 12
+
+	// pflagStringSliceDefValue is copied by appconfig from an unset StringSlice
+	// DefValue into viper, so Load can yield []string{"[]"} without this filter.
+	pflagStringSliceDefValue = "[]"
 )
 
 // Config is the subset of process settings this binary reads.
 type Config struct {
-	Log      appconfig.Log      `mapstructure:"log"`
-	Postgres appconfig.Postgres `mapstructure:"postgres"`
-	Health   HealthConfig       `mapstructure:"health"`
+	Log      appconfig.Log  `mapstructure:"log"`
+	Postgres PostgresConfig `mapstructure:"postgres"`
+	Health   HealthConfig   `mapstructure:"health"`
+}
+
+// PostgresConfig holds pool settings plus optional read-replica DSNs.
+// Field names mirror appconfig.Postgres so shared flags/env still bind.
+type PostgresConfig struct {
+	DSN             string        `mapstructure:"dsn"`
+	MaxOpenConns    int           `mapstructure:"max_open_conns"`
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
+	ConnMaxIdleTime time.Duration `mapstructure:"conn_max_idle_time"`
+	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
+	StandbyDSN      []string      `mapstructure:"standby_dsn"`
+}
+
+// StandbyDSNs returns trimmed non-empty standby DSNs.
+func (p PostgresConfig) StandbyDSNs() []string {
+	if len(p.StandbyDSN) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(p.StandbyDSN))
+	for _, dsn := range p.StandbyDSN {
+		s := strings.TrimSpace(dsn)
+		if s == "" || s == pflagStringSliceDefValue {
+			continue
+		}
+
+		out = append(out, s)
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
 }
 
 // HealthConfig exposes the health probes and sd_notify timings.
@@ -44,7 +83,7 @@ func (h HealthConfig) StopTimeoutDuration() time.Duration {
 
 // LoadServerConfig loads logging, Postgres and the health settings.
 func LoadServerConfig() (*Config, error) {
-	cfg, err := load(appconfig.Sections{Log: true, Postgres: true}, registerHealthFlags)
+	cfg, err := load(appconfig.Sections{Log: true, Postgres: true}, registerServerExtraFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -70,29 +109,44 @@ func LoadMigrateConfig() (*Config, error) {
 	return cfg, nil
 }
 
-func load(sections appconfig.Sections, extra func()) (*Config, error) {
+func load(sections appconfig.Sections, extra func(*pflag.FlagSet)) (*Config, error) {
 	loader := appconfig.NewLoader(sections)
 	loader.RegisterFlags(pflag.CommandLine)
 
 	if extra != nil {
-		extra()
+		extra(pflag.CommandLine)
 	}
 
 	pflag.Parse()
 
+	return finishLoad(loader, pflag.CommandLine)
+}
+
+func finishLoad(loader *appconfig.Loader, fs *pflag.FlagSet) (*Config, error) {
 	cfg := &Config{}
-	if err := loader.Load(pflag.CommandLine, cfg); err != nil {
+	if err := loader.Load(fs, cfg); err != nil {
 		return nil, err
 	}
+
+	cfg.Postgres.StandbyDSN = cfg.Postgres.StandbyDSNs()
 
 	return cfg, nil
 }
 
-func registerHealthFlags() {
-	pflag.String("health.address", "", "listen address of the health probes (empty disables them)")
-	pflag.Int("health.start_timeout", defaultHealthStartTimeoutSec,
+func registerServerExtraFlags(fs *pflag.FlagSet) {
+	registerPostgresStandbyFlags(fs)
+	registerHealthFlags(fs)
+}
+
+func registerPostgresStandbyFlags(fs *pflag.FlagSet) {
+	fs.StringSlice("postgres.standby_dsn", nil, "optional PostgreSQL read-replica DSNs")
+}
+
+func registerHealthFlags(fs *pflag.FlagSet) {
+	fs.String("health.address", "", "listen address of the health probes (empty disables them)")
+	fs.Int("health.start_timeout", defaultHealthStartTimeoutSec,
 		"seconds before sd_notify reports READY=1 anyway; must stay under TimeoutStartSec")
-	pflag.Int("health.stop_timeout", defaultHealthStopTimeoutSec,
+	fs.Int("health.stop_timeout", defaultHealthStopTimeoutSec,
 		"seconds budget for readiness drain on shutdown; must fit inside TimeoutStopSec")
 }
 
