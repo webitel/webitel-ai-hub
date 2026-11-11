@@ -7,7 +7,7 @@ require (
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/spf13/pflag v1.0.10
 	github.com/urfave/cli/v2 v2.27.7
-	github.com/webitel/webitel-go-kit/appconfig v0.0.0-20260803090450-fac61ca3df42
+	github.com/webitel/webitel-go-kit/appconfig v0.2.0
 	github.com/webitel/webitel-go-kit/infra/health v0.4.0
 	github.com/webitel/webitel-go-kit/infra/health/fx v0.2.0
 	github.com/webitel/webitel-go-kit/infra/otel v0.6.0

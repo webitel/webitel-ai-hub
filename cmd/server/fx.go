@@ -1,8 +1,6 @@
 package server
 
 import (
-	"time"
-
 	"go.uber.org/fx"
 
 	"github.com/webitel/webitel-go-kit/infra/health"
@@ -14,14 +12,10 @@ import (
 	"github.com/webitel/webitel-ai-hub/internal/model"
 )
 
-// pgwStartTimeout bounds the initial primary connect. pgw retries on its own
-// background context, so this must outlive the library's default retry budget.
-const pgwStartTimeout = 60 * time.Second
-
 // NewApp builds the server graph. Migrations are not part of it.
 func NewApp(cfg *config.Config) *fx.App {
 	return fx.New(
-		fx.StartTimeout(pgwStartTimeout),
+		fx.StartTimeout(cfg.Health.StartTimeoutDuration()),
 		fx.Provide(
 			func() *config.Config { return cfg },
 			ProvideLogger,
@@ -35,8 +29,7 @@ func NewApp(cfg *config.Config) *fx.App {
 			ApplicationName: model.ServiceName,
 			DSN:             cfg.Postgres.DSN,
 			MaxConns:        cfg.Postgres.MaxOpenConns,
-			MinConns:        cfg.Postgres.MaxIdleConns,
-			StandbyDSN:      cfg.Postgres.StandbyDSNs(),
+			StandbyDSN:      cfg.Postgres.StandbyDSN,
 			RegisterHealth:  true,
 		}),
 		healthfx.Shutdown(),

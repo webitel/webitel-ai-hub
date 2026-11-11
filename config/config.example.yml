@@ -1,6 +1,5 @@
 # Example configuration for webitel-ai-hub.
 # Flags and environment variables override this file.
-# Connection lifetime settings are accepted by appconfig and ignored by pgw.
 
 log:
   level: "info"
@@ -10,11 +9,10 @@ log:
 postgres:
   dsn: "postgres://postgres:postgres@127.0.0.1:5432/webitel?sslmode=disable&connect_timeout=10"
   max_open_conns: 5
-  max_idle_conns: 5
   # standby_dsn:
   #   - "postgres://postgres:postgres@127.0.0.1:5433/webitel?sslmode=disable&connect_timeout=10"
 
 health:
   address: "127.0.0.1:8081"
   start_timeout: 60
-  stop_timeout: 12
+  # stop_timeout: 20
