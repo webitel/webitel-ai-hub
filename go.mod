@@ -10,7 +10,7 @@ require (
 	github.com/webitel/webitel-go-kit/appconfig v0.2.0
 	github.com/webitel/webitel-go-kit/infra/health v0.4.0
 	github.com/webitel/webitel-go-kit/infra/health/fx v0.2.0
-	github.com/webitel/webitel-go-kit/infra/otel v0.6.0
+	github.com/webitel/webitel-go-kit/infra/otel v0.7.1
 	github.com/webitel/webitel-go-kit/infra/pgw/fx v0.2.0
 	github.com/webitel/webitel-go-kit/pkg/errors v0.2.0
 	go.uber.org/fx v1.24.0
