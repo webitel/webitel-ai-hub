@@ -3,7 +3,7 @@ module github.com/webitel/webitel-ai-hub
 go 1.26.11
 
 require (
-	github.com/jackc/pgx/v5 v5.11.0
+	github.com/jackc/pgx/v5 v5.12.0
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/spf13/pflag v1.0.10
 	github.com/urfave/cli/v2 v2.27.7
@@ -26,7 +26,7 @@ require (
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/jackc/puddle/v2 v2.2.3 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
