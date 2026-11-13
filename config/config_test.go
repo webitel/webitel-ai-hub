@@ -10,16 +10,49 @@ func testPostgres(dsn string) appconfig.Postgres {
 	return appconfig.Postgres{DSN: dsn}
 }
 
+func validServerConfig() *Config {
+	return &Config{
+		Service:  ServiceConfig{Addr: "127.0.0.1:8080"},
+		Postgres: testPostgres("postgres://localhost/webitel"),
+		Consul:   appconfig.Consul{Addr: "127.0.0.1:8500"},
+	}
+}
+
 func TestValidateServerRequiresDSN(t *testing.T) {
-	cfg := &Config{}
+	cfg := &Config{
+		Service: ServiceConfig{Addr: "127.0.0.1:8080"},
+		Consul:  appconfig.Consul{Addr: "127.0.0.1:8500"},
+	}
 
 	if err := cfg.validateServer(); err == nil {
 		t.Fatal("validateServer() error = nil, want missing dsn")
 	}
 }
 
+func TestValidateServerRequiresServiceAddr(t *testing.T) {
+	cfg := &Config{
+		Postgres: testPostgres("postgres://localhost/webitel"),
+		Consul:   appconfig.Consul{Addr: "127.0.0.1:8500"},
+	}
+
+	if err := cfg.validateServer(); err == nil {
+		t.Fatal("validateServer() error = nil, want missing service.addr")
+	}
+}
+
+func TestValidateServerRequiresConsulAddr(t *testing.T) {
+	cfg := &Config{
+		Service:  ServiceConfig{Addr: "127.0.0.1:8080"},
+		Postgres: testPostgres("postgres://localhost/webitel"),
+	}
+
+	if err := cfg.validateServer(); err == nil {
+		t.Fatal("validateServer() error = nil, want missing consul.addr")
+	}
+}
+
 func TestValidateServerDefaultsLogLevel(t *testing.T) {
-	cfg := &Config{Postgres: testPostgres("postgres://localhost/webitel")}
+	cfg := validServerConfig()
 
 	if err := cfg.validateServer(); err != nil {
 		t.Fatalf("validateServer() error = %v", err)
@@ -31,7 +64,7 @@ func TestValidateServerDefaultsLogLevel(t *testing.T) {
 }
 
 func TestValidateServerDefaultsHealthTimeouts(t *testing.T) {
-	cfg := &Config{Postgres: testPostgres("postgres://localhost/webitel")}
+	cfg := validServerConfig()
 
 	if err := cfg.validateServer(); err != nil {
 		t.Fatalf("validateServer() error = %v", err)
@@ -47,10 +80,8 @@ func TestValidateServerDefaultsHealthTimeouts(t *testing.T) {
 }
 
 func TestValidateServerKeepsStopTimeout(t *testing.T) {
-	cfg := &Config{
-		Postgres: testPostgres("postgres://localhost/webitel"),
-		Health:   HealthConfig{StopTimeout: 20},
-	}
+	cfg := validServerConfig()
+	cfg.Health.StopTimeout = 20
 
 	if err := cfg.validateServer(); err != nil {
 		t.Fatalf("validateServer() error = %v", err)
