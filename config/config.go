@@ -14,9 +14,17 @@ const defaultHealthStartTimeoutSec = 60
 
 // Config is the subset of process settings this binary reads.
 type Config struct {
+	Service  ServiceConfig      `mapstructure:"service"`
 	Log      appconfig.Log      `mapstructure:"log"`
 	Postgres appconfig.Postgres `mapstructure:"postgres"`
+	Consul   appconfig.Consul   `mapstructure:"consul"`
 	Health   HealthConfig       `mapstructure:"health"`
+}
+
+// ServiceConfig holds the gRPC listen address and connection TLS settings.
+type ServiceConfig struct {
+	Addr       string             `mapstructure:"addr"`
+	Connection appconfig.GRPCConn `mapstructure:"conn"`
 }
 
 // HealthConfig exposes the health probes and sd_notify timings.
@@ -38,9 +46,13 @@ func (h HealthConfig) StopTimeoutDuration() time.Duration {
 	return time.Duration(h.StopTimeout) * time.Second
 }
 
-// LoadServerConfig loads logging, Postgres and the health settings.
+// LoadServerConfig loads logging, Postgres, Consul, service and the health settings.
 func LoadServerConfig() (*Config, error) {
-	cfg, err := load(appconfig.Sections{Log: true, Postgres: true}, registerHealthFlags)
+	cfg, err := load(
+		appconfig.Sections{Log: true, Postgres: true, Consul: true},
+		registerServerFlags,
+		appconfig.GRPCConnSecretPaths("service.conn")...,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -66,9 +78,13 @@ func LoadMigrateConfig() (*Config, error) {
 	return cfg, nil
 }
 
-func load(sections appconfig.Sections, extra func(*pflag.FlagSet)) (*Config, error) {
+func load(sections appconfig.Sections, extra func(*pflag.FlagSet), secretPaths ...string) (*Config, error) {
 	loader := appconfig.NewLoader(sections)
 	loader.RegisterFlags(pflag.CommandLine)
+
+	if len(secretPaths) > 0 {
+		loader.MarkSecretPath(secretPaths...)
+	}
 
 	if extra != nil {
 		extra(pflag.CommandLine)
@@ -84,6 +100,12 @@ func load(sections appconfig.Sections, extra func(*pflag.FlagSet)) (*Config, err
 	return cfg, nil
 }
 
+func registerServerFlags(fs *pflag.FlagSet) {
+	fs.String("service.addr", "localhost:8080", "gRPC listen address")
+	appconfig.RegisterGRPCConnFlags(fs, "service.conn", false)
+	registerHealthFlags(fs)
+}
+
 func registerHealthFlags(fs *pflag.FlagSet) {
 	fs.String("health.address", "", "listen address of the health probes (empty disables them)")
 	fs.Int("health.start_timeout", defaultHealthStartTimeoutSec,
@@ -93,8 +115,20 @@ func registerHealthFlags(fs *pflag.FlagSet) {
 }
 
 func (c *Config) validateServer() error {
+	if c.Service.Addr == "" {
+		return errors.New("config: service.addr is required")
+	}
+
+	if err := appconfig.ValidateGRPCConn("service.conn", c.Service.Connection); err != nil {
+		return err
+	}
+
 	if c.Log.Level == "" {
 		c.Log.Level = "info"
+	}
+
+	if c.Consul.Addr == "" {
+		return errors.New("config: consul.addr is required")
 	}
 
 	if c.Health.StartTimeout <= 0 {
