@@ -5,7 +5,7 @@ go 1.26.11
 require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pressly/goose/v3 v3.27.3
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/webitel/webitel-go-kit/appconfig v0.2.0
 	github.com/webitel/webitel-go-kit/infra/health v0.4.0
