@@ -20,7 +20,7 @@ import (
 // message: code is the HTTP status it answers with.
 type rpcError struct {
 	ID     string `json:"id"`
-	Code   int32  `json:"code"`
+	Code   int    `json:"code"`
 	Detail string `json:"detail"`
 	Status string `json:"status"`
 }
@@ -46,13 +46,11 @@ func errorStatus(ctx context.Context, log *slog.Logger, method string, err error
 	if id == "" {
 		id = fallbackID(code)
 
-		// An unexpected failure keeps its text in the log only.
 		if httpCode >= http.StatusInternalServerError {
 			detail = http.StatusText(httpCode)
 		}
 	}
 
-	// A caller that went away is not a failure of the service.
 	level := slog.LevelWarn
 	if httpCode >= http.StatusInternalServerError && code != codes.Canceled {
 		level = slog.LevelError
@@ -69,7 +67,7 @@ func errorStatus(ctx context.Context, log *slog.Logger, method string, err error
 
 	body, _ := json.Marshal(rpcError{
 		ID:     id,
-		Code:   int32(httpCode), //nolint:gosec // HTTP status fits int32
+		Code:   httpCode,
 		Detail: detail,
 		Status: http.StatusText(httpCode),
 	})

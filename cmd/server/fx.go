@@ -10,7 +10,6 @@ import (
 	pgwfx "github.com/webitel/webitel-go-kit/infra/pgw/fx"
 
 	"github.com/webitel/webitel-ai-hub/config"
-	"github.com/webitel/webitel-ai-hub/infra/mtls"
 	grpcsrv "github.com/webitel/webitel-ai-hub/infra/server/grpc"
 	"github.com/webitel/webitel-ai-hub/internal/model"
 )
@@ -47,7 +46,6 @@ func NewApp(cfg *config.Config) *fx.App {
 				"buildTimestamp": model.BuildTimestamp,
 			},
 		}),
-		mtls.Module,
 		grpcsrv.Module,
 		healthfx.Shutdown(),
 	)

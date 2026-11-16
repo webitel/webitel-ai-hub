@@ -10,28 +10,28 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/webitel/webitel-go-kit/infra/health"
+	wgrpc "github.com/webitel/webitel-go-kit/infra/transport/gRPC"
 
 	"github.com/webitel/webitel-ai-hub/config"
-	"github.com/webitel/webitel-ai-hub/infra/mtls"
 )
 
 // Module wires the gRPC server into the fx graph and registers its health check.
 var Module = fx.Module("grpc_server",
 	fx.Provide(
-		fx.Annotate(
-			ProvideServer,
-		),
+		ProvideServer,
 	),
 	fx.Invoke(registerHealth),
 )
 
 // ProvideServer builds the gRPC server and attaches fx start/stop hooks.
-func ProvideServer(conf *config.Config, logger *slog.Logger, mtlsCfg *mtls.Config, lc fx.Lifecycle) (*Server, error) {
-	srv, err := New(conf.Service.Addr, func(c *Config) error {
-		if mtlsCfg.Server != nil {
-			c.TLS = mtlsCfg.Server.Clone()
-		}
+func ProvideServer(conf *config.Config, logger *slog.Logger, lc fx.Lifecycle) (*Server, error) {
+	creds, err := wgrpc.ServerCredentials(conf.Service.Connection)
+	if err != nil {
+		return nil, err
+	}
 
+	srv, err := New(conf.Service.Addr, func(c *Config) error {
+		c.Creds = creds
 		c.Logger = logger
 
 		return nil
@@ -43,7 +43,7 @@ func ProvideServer(conf *config.Config, logger *slog.Logger, mtlsCfg *mtls.Confi
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			go func() {
-				logger.Info(fmt.Sprintf("listen grpc %s:%d", srv.Host(), srv.Port()))
+				logger.Info(fmt.Sprintf("listen grpc %s", listenAddr(srv)))
 
 				if err := srv.Listen(); err != nil {
 					logger.Error("grpc server error", "err", err)
@@ -52,12 +52,8 @@ func ProvideServer(conf *config.Config, logger *slog.Logger, mtlsCfg *mtls.Confi
 
 			return nil
 		},
-		OnStop: func(_ context.Context) error {
-			if err := srv.Shutdown(); err != nil {
-				logger.Error("error stopping grpc server", "err", err.Error())
-
-				return err
-			}
+		OnStop: func(ctx context.Context) error {
+			srv.Shutdown(ctx)
 
 			return nil
 		},
@@ -68,4 +64,12 @@ func ProvideServer(conf *config.Config, logger *slog.Logger, mtlsCfg *mtls.Confi
 
 func registerHealth(srv *Server, h *health.Registry) {
 	h.Critical("grpc", health.ListenerCheck(srv.Listener()))
+}
+
+func listenAddr(srv *Server) string {
+	if adv, err := srv.AdvertiseAddr(); err == nil {
+		return adv.String()
+	}
+
+	return srv.Listener().Addr().String()
 }

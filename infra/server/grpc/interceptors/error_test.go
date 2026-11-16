@@ -22,7 +22,7 @@ const testMethod = "/webitel.ai_hub.Test/Call"
 // gatewayError mirrors the error the webitel.go gateway decodes.
 type gatewayError struct {
 	ID     string `json:"id"`
-	Code   int32  `json:"code"`
+	Code   int    `json:"code"`
 	Detail string `json:"detail"`
 	Status string `json:"status"`
 }
@@ -159,7 +159,7 @@ func TestUnaryErrorInterceptor(t *testing.T) {
 				t.Errorf("grpc code = %v, want %v", code, tt.wantCode)
 			}
 
-			if body.Code != int32(tt.wantHTTP) || body.Status != http.StatusText(tt.wantHTTP) {
+			if body.Code != tt.wantHTTP || body.Status != http.StatusText(tt.wantHTTP) {
 				t.Errorf("http = %d %q, want %d", body.Code, body.Status, tt.wantHTTP)
 			}
 

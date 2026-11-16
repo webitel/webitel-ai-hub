@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/webitel/webitel-go-kit/appconfig"
@@ -18,36 +19,33 @@ func validServerConfig() *Config {
 	}
 }
 
-func TestValidateServerRequiresDSN(t *testing.T) {
-	cfg := &Config{
-		Service: ServiceConfig{Addr: "127.0.0.1:8080"},
-		Consul:  appconfig.Consul{Addr: "127.0.0.1:8500"},
+func TestValidateServerRequiredFields(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{
+			name:    "requires dsn",
+			mutate:  func(c *Config) { c.Postgres.DSN = "" },
+			wantErr: "postgres.dsn",
+		},
 	}
 
-	if err := cfg.validateServer(); err == nil {
-		t.Fatal("validateServer() error = nil, want missing dsn")
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validServerConfig()
+			tt.mutate(cfg)
 
-func TestValidateServerRequiresServiceAddr(t *testing.T) {
-	cfg := &Config{
-		Postgres: testPostgres("postgres://localhost/webitel"),
-		Consul:   appconfig.Consul{Addr: "127.0.0.1:8500"},
-	}
+			err := cfg.validateServer()
+			if err == nil {
+				t.Fatal("validateServer() error = nil, want error")
+			}
 
-	if err := cfg.validateServer(); err == nil {
-		t.Fatal("validateServer() error = nil, want missing service.addr")
-	}
-}
-
-func TestValidateServerRequiresConsulAddr(t *testing.T) {
-	cfg := &Config{
-		Service:  ServiceConfig{Addr: "127.0.0.1:8080"},
-		Postgres: testPostgres("postgres://localhost/webitel"),
-	}
-
-	if err := cfg.validateServer(); err == nil {
-		t.Fatal("validateServer() error = nil, want missing consul.addr")
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("validateServer() error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 

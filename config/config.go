@@ -115,20 +115,12 @@ func registerHealthFlags(fs *pflag.FlagSet) {
 }
 
 func (c *Config) validateServer() error {
-	if c.Service.Addr == "" {
-		return errors.New("config: service.addr is required")
-	}
-
 	if err := appconfig.ValidateGRPCConn("service.conn", c.Service.Connection); err != nil {
 		return err
 	}
 
 	if c.Log.Level == "" {
 		c.Log.Level = "info"
-	}
-
-	if c.Consul.Addr == "" {
-		return errors.New("config: consul.addr is required")
 	}
 
 	if c.Health.StartTimeout <= 0 {

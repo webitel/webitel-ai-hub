@@ -1,17 +1,17 @@
 package server
 
 import (
-	"crypto/tls"
+	"context"
 	"log/slog"
 	"net"
 	"net/netip"
-	"os"
 
 	"buf.build/go/protovalidate"
 	validatemiddleware "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -27,9 +27,6 @@ import (
 type Server struct {
 	*grpc.Server
 
-	Addr     string
-	host     string
-	port     int
 	log      *slog.Logger
 	listener net.Listener
 	health   *health.Server
@@ -37,7 +34,7 @@ type Server struct {
 
 // Config holds optional construction settings for New.
 type Config struct {
-	TLS    *tls.Config
+	Creds  credentials.TransportCredentials
 	Logger *slog.Logger
 }
 
@@ -46,10 +43,7 @@ type Option func(*Config) error
 
 // New provides a new gRPC server.
 func New(addr string, opts ...Option) (*Server, error) {
-	var (
-		conf    Config
-		grpcTLS credentials.TransportCredentials
-	)
+	var conf Config
 	for _, opt := range opts {
 		if err := opt(&conf); err != nil {
 			return nil, err
@@ -65,8 +59,9 @@ func New(addr string, opts ...Option) (*Server, error) {
 		addr = ":0"
 	}
 
-	if conf.TLS != nil {
-		grpcTLS = credentials.NewTLS(conf.TLS)
+	creds := conf.Creds
+	if creds == nil {
+		creds = insecure.NewCredentials()
 	}
 
 	validator, err := protovalidate.New()
@@ -74,9 +69,8 @@ func New(addr string, opts ...Option) (*Server, error) {
 		return nil, err
 	}
 
-	// Auth interceptor is wired in a follow-up task.
 	s := grpc.NewServer(
-		grpc.Creds(grpcTLS),
+		grpc.Creds(creds),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			interceptors.NewUnaryErrorInterceptor(log),
@@ -97,19 +91,9 @@ func New(addr string, opts ...Option) (*Server, error) {
 		return nil, err
 	}
 
-	host, port, err := advertiseAddr(l.Addr())
-	if err != nil {
-		_ = l.Close()
-
-		return nil, err
-	}
-
 	return &Server{
-		Addr:     addr,
 		Server:   s,
 		log:      log,
-		host:     host,
-		port:     port,
 		listener: l,
 		health:   healthSrv,
 	}, nil
@@ -120,51 +104,41 @@ func (s *Server) Listen() error {
 	return s.Serve(s.listener)
 }
 
-// Shutdown marks health NOT_SERVING and GracefulStops the server.
-func (s *Server) Shutdown() error {
+// Shutdown marks health NOT_SERVING, then GracefulStops; on ctx done it Stop()s
+// so later fx hooks (Consul Deregister) can still run.
+func (s *Server) Shutdown(ctx context.Context) {
 	s.log.Debug("receive shutdown grpc")
 
 	if s.health != nil {
-		// Flip health to NOT_SERVING so load balancers drain us before we stop.
 		s.health.Shutdown()
 	}
 
-	s.GracefulStop()
+	done := make(chan struct{})
 
-	return nil
+	go func() {
+		s.GracefulStop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		s.Stop()
+	}
 }
 
-// Host returns the advertised gRPC host, honoring PROXY_GRPC_HOST when set.
-func (s *Server) Host() string {
-	if e, ok := os.LookupEnv("PROXY_GRPC_HOST"); ok {
-		return e
+// AdvertiseAddr returns the address to publish to Consul, preferring a
+// private interface IP when the listener is bound to an unspecified address.
+func (s *Server) AdvertiseAddr() (netip.AddrPort, error) {
+	listen, err := netip.ParseAddrPort(s.listener.Addr().String())
+	if err != nil {
+		return netip.AddrPort{}, err
 	}
 
-	return s.host
-}
-
-// Port returns the bound listen port.
-func (s *Server) Port() int {
-	return s.port
+	return hostaddr.Advertise(listen)
 }
 
 // Listener returns the socket the server accepts connections on.
 func (s *Server) Listener() net.Listener {
 	return s.listener
-}
-
-func advertiseAddr(addr net.Addr) (string, int, error) {
-	ap, err := netip.ParseAddrPort(addr.String())
-	if err != nil {
-		return "", 0, err
-	}
-
-	adv, err := hostaddr.Advertise(ap)
-	if err != nil {
-		// Fall back to the bound address when a private IP cannot be chosen
-		// (for example, only loopback is up in local/dev).
-		return ap.Addr().String(), int(ap.Port()), nil
-	}
-
-	return adv.Addr().String(), int(adv.Port()), nil
 }
