@@ -1,16 +1,25 @@
 # Example configuration for webitel-ai-hub.
 # Flags and environment variables override this file.
 
+service:
+  addr: "127.0.0.1:8080"
+  conn:
+    verify_certs: false
+
 log:
   level: "info"
   json: false
   console: true
+  otel: false
 
 postgres:
   dsn: "postgres://postgres:postgres@127.0.0.1:5432/webitel?sslmode=disable&connect_timeout=10"
   max_open_conns: 5
   # standby_dsn:
   #   - "postgres://postgres:postgres@127.0.0.1:5433/webitel?sslmode=disable&connect_timeout=10"
+
+consul:
+  addr: "127.0.0.1:8500"
 
 health:
   address: "127.0.0.1:8081"

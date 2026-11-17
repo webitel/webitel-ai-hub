@@ -3,12 +3,14 @@ package server
 import (
 	"go.uber.org/fx"
 
+	discoveryfx "github.com/webitel/webitel-go-kit/infra/discovery/fx"
 	"github.com/webitel/webitel-go-kit/infra/health"
 	healthfx "github.com/webitel/webitel-go-kit/infra/health/fx"
 	otelhealth "github.com/webitel/webitel-go-kit/infra/otel/instrumentation/health"
 	pgwfx "github.com/webitel/webitel-go-kit/infra/pgw/fx"
 
 	"github.com/webitel/webitel-ai-hub/config"
+	grpcsrv "github.com/webitel/webitel-ai-hub/infra/server/grpc"
 	"github.com/webitel/webitel-ai-hub/internal/model"
 )
 
@@ -32,6 +34,19 @@ func NewApp(cfg *config.Config) *fx.App {
 			StandbyDSN:      cfg.Postgres.StandbyDSN,
 			RegisterHealth:  true,
 		}),
+		discoveryfx.Module(discoveryfx.Config{
+			Addr:      cfg.Consul.Addr,
+			Name:      model.ServiceName,
+			Version:   model.Version,
+			Endpoints: []string{"grpc://" + cfg.Service.Addr},
+			Metadata: map[string]string{
+				"commit":         model.Commit,
+				"commitDate":     model.CommitDate,
+				"branch":         model.Branch,
+				"buildTimestamp": model.BuildTimestamp,
+			},
+		}),
+		grpcsrv.Module,
 		healthfx.Shutdown(),
 	)
 }
